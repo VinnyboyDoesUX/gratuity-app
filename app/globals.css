@@ -1,26 +1,123 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
+/* ── Stitch Design DNA: High-End Financial Editorial ─────────────────── */
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  /* Surface hierarchy */
+  --color-surface-dim:               #141312;
+  --color-surface:                   #141312;
+  --color-surface-container-lowest:  #0f0e0d;
+  --color-surface-container-low:     #1d1b1a;
+  --color-surface-container:         #211f1e;
+  --color-surface-container-high:    #2b2a28;
+  --color-surface-container-highest: #363433;
+  --color-surface-bright:            #3b3937;
+  --color-surface-variant:           #363433;
+  --color-surface-tint:              #e9c349;
+
+  /* Primary (Gold) */
+  --color-primary:               #f2ca50;
+  --color-primary-container:     #d4af37;
+  --color-primary-fixed:         #ffe088;
+  --color-primary-fixed-dim:     #e9c349;
+  --color-on-primary:            #3c2f00;
+  --color-on-primary-container:  #554300;
+  --color-on-primary-fixed:      #241a00;
+  --color-on-primary-fixed-variant: #574500;
+  --color-inverse-primary:       #735c00;
+
+  /* Secondary */
+  --color-secondary:             #c6c7c2;
+  --color-secondary-container:   #484a46;
+  --color-secondary-fixed:       #e3e3de;
+  --color-secondary-fixed-dim:   #c6c7c2;
+  --color-on-secondary:          #2f312e;
+  --color-on-secondary-container:#b8b9b4;
+  --color-on-secondary-fixed:    #1a1c19;
+  --color-on-secondary-fixed-variant: #454744;
+
+  /* Tertiary */
+  --color-tertiary:              #bfcdff;
+  --color-tertiary-container:    #97b0ff;
+  --color-tertiary-fixed:        #dbe1ff;
+  --color-tertiary-fixed-dim:    #b4c5ff;
+  --color-on-tertiary:           #082b72;
+  --color-on-tertiary-container: #254188;
+  --color-on-tertiary-fixed:     #00174b;
+  --color-on-tertiary-fixed-variant: #27438a;
+
+  /* On-surface & background */
+  --color-background:            #141312;
+  --color-on-background:         #e6e1df;
+  --color-on-surface:            #e6e1df;
+  --color-on-surface-variant:    #d0c5af;
+  --color-inverse-surface:       #e6e1df;
+  --color-inverse-on-surface:    #32302f;
+
+  /* Outline */
+  --color-outline:               #99907c;
+  --color-outline-variant:       #4d4635;
+
+  /* Error */
+  --color-error:                 #ffb4ab;
+  --color-error-container:       #93000a;
+  --color-on-error:              #690005;
+  --color-on-error-container:    #ffdad6;
+
+  /* Border radius */
+  --radius-DEFAULT: 0.125rem;
+  --radius-lg:      0.25rem;
+  --radius-xl:      0.5rem;
+  --radius-2xl:     0.75rem;
+  --radius-3xl:     1rem;
+  --radius-full:    9999px;
+
+  /* Fonts */
+  --font-headline: "Noto Serif", Georgia, serif;
+  --font-body:     "Inter", system-ui, sans-serif;
+  --font-label:    "Inter", system-ui, sans-serif;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+/* ── Base ─────────────────────────────────────────────────────────────── */
+@layer base {
+  html { color-scheme: dark; }
+
+  body {
+    background-color: var(--color-surface);
+    color: var(--color-on-surface);
+    font-family: var(--font-body);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  ::selection {
+    background-color: var(--color-primary-container);
+    color: var(--color-on-primary);
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* ── Utilities ────────────────────────────────────────────────────────── */
+@layer utilities {
+  .font-headline { font-family: var(--font-headline); }
+  .font-body     { font-family: var(--font-body); }
+  .font-label    { font-family: var(--font-label); }
+
+  .gold-gradient {
+    background: linear-gradient(135deg, #F2CA50 0%, #D4AF37 100%);
+  }
+
+  .glass-panel {
+    background: rgba(54, 52, 51, 0.6);
+    backdrop-filter: blur(20px);
+  }
+
+  .luminous-shadow {
+    box-shadow: 0 4px 40px rgba(212, 175, 55, 0.08);
+  }
+
+  .gold-glow {
+    box-shadow: 0 0 10px rgba(242, 202, 80, 0.35);
+  }
+
+  .gold-underline {
+    background: radial-gradient(ellipse at center, #f2ca50 0%, transparent 70%);
+  }
 }
