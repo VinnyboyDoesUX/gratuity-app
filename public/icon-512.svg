@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Background -->
+  <rect width="512" height="512" rx="106" fill="#141312"/>
+  <!-- Subtle gold glow -->
+  <radialGradient id="glow" cx="50%" cy="50%" r="50%">
+    <stop offset="0%" stop-color="#f2ca50" stop-opacity="0.10"/>
+    <stop offset="100%" stop-color="#f2ca50" stop-opacity="0"/>
+  </radialGradient>
+  <rect width="512" height="512" rx="106" fill="url(#glow)"/>
+  <!-- Gold G lettermark -->
+  <text
+    x="256"
+    y="345"
+    font-family="Georgia, 'Times New Roman', serif"
+    font-size="295"
+    font-weight="400"
+    fill="#D4AF37"
+    text-anchor="middle"
+    letter-spacing="-4"
+  >G</text>
+</svg>

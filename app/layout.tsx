@@ -18,6 +18,12 @@ const notoSerif = Noto_Serif({
 export const metadata: Metadata = {
   title: "Gratuity",
   description: "Premium tip calculator",
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "Gratuity",
+  },
 };
 
 export default function RootLayout({
@@ -27,6 +33,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={`${inter.variable} ${notoSerif.variable} h-full`}>
+      <head>
+        <link rel="apple-touch-icon" href="/icon-192.svg" />
+        <meta name="theme-color" content="#141312" />
+      </head>
       <body className="min-h-full">{children}</body>
     </html>
   );

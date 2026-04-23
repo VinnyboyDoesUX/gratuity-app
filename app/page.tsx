@@ -1,9 +1,7 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { calculate } from "@/utils/calculate";
-
-const TIP_PRESETS = [15, 18, 20] as const;
 
 function fmt(value: number) {
   return value.toLocaleString("en-US", {
@@ -12,227 +10,290 @@ function fmt(value: number) {
   });
 }
 
-export default function GratuityCalculator() {
-  const [billStr, setBillStr] = useState("0");
-  const [tipPercent, setTipPercent] = useState(20);
-  const [customPct, setCustomPct] = useState("");
-  const [showCustom, setShowCustom] = useState(false);
-  const [numPeople, setNumPeople] = useState(2);
-  const [tipOnSubtotal, setTipOnSubtotal] = useState(false);
-  const [roundTip, setRoundTip] = useState(false);
+const MAIN_CHIPS = [
+  { label: "Bad",    pct: 15 },
+  { label: "Decent", pct: 18 },
+  { label: "Good",   pct: 20 },
+] as const;
 
-  const billCents = parseInt(billStr.replace(/\D/g, "") || "0", 10);
-  const billAmount = billCents / 100;
-  const activePct = showCustom ? parseFloat(customPct) || 0 : tipPercent;
+const MORE_CHIPS = [
+  { label: "None",     pct: 0  },
+  { label: "Amazing",  pct: 30 },
+  { label: "Unhinged", pct: 69 },
+] as const;
+
+function haptic(ms = 8) {
+  if (typeof navigator !== "undefined" && navigator.vibrate) {
+    navigator.vibrate(ms);
+  }
+}
+
+export default function GratuityCalculator() {
+  const [billInput,  setBillInput]  = useState("");
+  const [tipPercent, setTipPercent] = useState(20);
+  const [showMore,   setShowMore]   = useState(false);
+  const [numPeople,  setNumPeople]  = useState(2);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const billAmount = parseFloat(billInput) || 0;
+
+  const handleBillChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    let v = e.target.value.replace(/[^0-9.]/g, "");
+    // enforce single decimal point
+    const dot = v.indexOf(".");
+    if (dot !== -1) v = v.slice(0, dot + 1) + v.slice(dot + 1).replace(/\./g, "");
+    // max 2 decimal places
+    if (dot !== -1 && v.length > dot + 3) v = v.slice(0, dot + 3);
+    // cap at $99,999
+    if (parseFloat(v) > 99999) return;
+    setBillInput(v);
+  };
 
   const result = calculate({
     billAmount,
     taxAmount: 0,
-    tipPercent: activePct,
+    tipPercent,
     numPeople,
-    tipOnSubtotal,
-    roundTip,
+    tipOnSubtotal: false,
+    roundTip: false,
   });
 
-  const handleDigit = useCallback((digit: string) => {
-    setBillStr((prev) => {
-      const digits = (prev.replace(/\D/g, "") + digit).replace(/^0+/, "") || "0";
-      if (parseInt(digits, 10) > 9999999) return prev;
-      return digits;
-    });
-  }, []);
-
-  const handleDouble0 = useCallback(() => {
-    setBillStr((prev) => {
-      const digits = (prev.replace(/\D/g, "") + "00").replace(/^0+/, "") || "0";
-      if (parseInt(digits, 10) > 9999999) return prev;
-      return digits;
-    });
-  }, []);
-
-  const handleBackspace = useCallback(() => {
-    setBillStr((prev) => {
-      const digits = prev.replace(/\D/g, "");
-      return digits.slice(0, -1) || "0";
-    });
-  }, []);
-
-  const displayBill = fmt(billAmount);
-  const showRoundUp = result.totalDue > 0 && result.roundUpTotal > result.totalDue + 0.001;
-  const tipEach = numPeople > 1 ? result.tipAmount / numPeople : result.tipAmount;
+  const moreActive = MORE_CHIPS.some((c) => c.pct === tipPercent);
 
   return (
-    <div style={{ minHeight: "100dvh", display: "flex", flexDirection: "column", backgroundColor: "#141312", color: "#e6e1df", fontFamily: "var(--font-inter), system-ui, sans-serif" }}>
+    <div style={{
+      minHeight: "100dvh",
+      backgroundColor: "#141312",
+      color: "#e6e1df",
+      fontFamily: "var(--font-inter), system-ui, sans-serif",
+    }}>
+      <main style={{
+        paddingTop: "calc(env(safe-area-inset-top, 0px) + 2.5rem)",
+        paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 2rem)",
+        paddingLeft: "1.25rem",
+        paddingRight: "1.25rem",
+        maxWidth: "28rem",
+        width: "100%",
+        margin: "0 auto",
+      }}>
 
-      {/* Fixed Header */}
-      <header style={{ position: "fixed", top: 0, left: 0, width: "100%", zIndex: 50, display: "flex", justifyContent: "center", alignItems: "center", padding: "0 1.5rem", height: "4rem", backgroundColor: "#141312" }}>
-        <h1 style={{ fontFamily: "var(--font-noto-serif), Georgia, serif", fontSize: "1.125rem", letterSpacing: "0.3em", color: "#D4AF37", margin: 0 }}>
-          GRATUITY
-        </h1>
-      </header>
+        {/* ── Zone 1: Bill input ───────────────────────────────────── */}
+        <div
+          style={{ marginBottom: "2.5rem", cursor: "text" }}
+          onClick={() => inputRef.current?.focus()}
+        >
+          <p style={{
+            fontSize: "0.5rem",
+            letterSpacing: "0.22em",
+            textTransform: "uppercase",
+            color: "rgba(208,197,175,0.35)",
+            marginBottom: "0.625rem",
+            fontFamily: "var(--font-inter), system-ui, sans-serif",
+          }}>
+            Bill
+          </p>
 
-      {/* Scrollable content */}
-      <main style={{ paddingTop: "6rem", paddingBottom: "3rem", paddingLeft: "1.5rem", paddingRight: "1.5rem", maxWidth: "32rem", width: "100%", margin: "0 auto", display: "flex", flexDirection: "column" }}>
-
-        {/* Bill Entry */}
-        <section style={{ marginBottom: "2rem", textAlign: "right" }}>
-          <label style={{ display: "block", fontSize: "0.6875rem", letterSpacing: "0.2em", textTransform: "uppercase" as const, color: "#d0c5af", marginBottom: "0.5rem", fontFamily: "var(--font-inter), system-ui, sans-serif" }}>
-            Check Total
-          </label>
-          <div>
-            <div style={{ fontFamily: "var(--font-noto-serif), Georgia, serif", fontSize: "4rem", lineHeight: 1, color: "#e6e1df", letterSpacing: "-0.02em" }}>
-              <span style={{ color: "rgba(242,202,80,0.3)", fontWeight: 300 }}>$</span>
-              {displayBill}
-            </div>
-            <div style={{ height: "2px", marginTop: "0.5rem", background: "radial-gradient(ellipse at center, rgba(242,202,80,0.45) 0%, transparent 70%)", opacity: 0.7 }} />
-          </div>
-        </section>
-
-        {/* Numpad */}
-        <section style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "1px", backgroundColor: "rgba(77,70,53,0.15)", borderRadius: "0.75rem", overflow: "hidden", marginBottom: "2rem" }}>
-          {["1","2","3","4","5","6","7","8","9"].map((d) => (
-            <NumpadKey key={d} label={d} onClick={() => handleDigit(d)} />
-          ))}
-          <NumpadKey label="00" onClick={handleDouble0} dim />
-          <NumpadKey label="0" onClick={() => handleDigit("0")} />
-          <NumpadKey label={<MaterialIcon name="backspace" />} onClick={handleBackspace} dim />
-        </section>
-
-        {/* Controls */}
-        <section style={{ display: "flex", flexDirection: "column", gap: "2rem", marginBottom: "2.5rem" }}>
-
-          {/* Subtotal toggle */}
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <span style={{ fontSize: "0.75rem", textTransform: "uppercase" as const, letterSpacing: "0.12em", color: "rgba(208,197,175,0.8)", fontFamily: "var(--font-inter), system-ui, sans-serif" }}>
-              Tip on subtotal only
+          <div style={{ display: "flex", alignItems: "baseline" }}>
+            <span style={{
+              fontFamily: "var(--font-noto-serif), Georgia, serif",
+              fontSize: "3rem",
+              lineHeight: 1,
+              color: "rgba(242,202,80,0.25)",
+              fontWeight: 300,
+              paddingRight: "0.2rem",
+              flexShrink: 0,
+            }}>
+              $
             </span>
-            <Toggle active={tipOnSubtotal} onToggle={() => setTipOnSubtotal((v) => !v)} label="Tip on subtotal only" />
+            <input
+              ref={inputRef}
+              type="text"
+              inputMode="decimal"
+              pattern="[0-9]*\.?[0-9]{0,2}"
+              placeholder="0.00"
+              value={billInput}
+              onChange={handleBillChange}
+              style={{
+                flex: 1,
+                background: "transparent",
+                border: "none",
+                outline: "none",
+                fontFamily: "var(--font-noto-serif), Georgia, serif",
+                fontSize: "3rem",
+                lineHeight: 1,
+                letterSpacing: "-0.02em",
+                color: billInput ? "#e6e1df" : "rgba(230,225,223,0.2)",
+                textAlign: "right",
+                width: "100%",
+                fontVariantNumeric: "tabular-nums",
+                WebkitTapHighlightColor: "transparent",
+                caretColor: "#f2ca50",
+              }}
+            />
           </div>
 
-          {/* Tip % chips */}
-          <div style={{ display: "flex", gap: "0.75rem" }}>
-            {TIP_PRESETS.map((pct) => {
-              const active = !showCustom && tipPercent === pct;
-              return (
-                <button
-                  key={pct}
-                  onClick={() => { setTipPercent(pct); setShowCustom(false); }}
-                  className={`chip${active ? " chip-active" : ""}`}
-                  style={{
-                    flex: 1,
-                    padding: "0.75rem 0.5rem",
-                    borderRadius: "0.75rem",
-                    fontSize: "0.875rem",
-                    fontWeight: active ? 600 : 500,
-                    fontFamily: "var(--font-inter), system-ui, sans-serif",
-                    cursor: "pointer",
-                    backgroundColor: active ? "transparent" : "#2b2a28",
-                    color: active ? "#f2ca50" : "#d0c5af",
-                    border: active ? "1px solid rgba(242,202,80,0.65)" : "1px solid transparent",
-                  }}>
-                  {pct}%
-                </button>
-              );
-            })}
-            {showCustom ? (
-              <input
-                type="number"
-                min={0}
-                max={100}
-                value={customPct}
-                onChange={(e) => setCustomPct(e.target.value)}
-                placeholder="%"
-                autoFocus
-                style={{
-                  flex: 1,
-                  padding: "0.75rem 0.5rem",
-                  borderRadius: "0.75rem",
-                  fontSize: "0.875rem",
-                  fontFamily: "var(--font-inter), system-ui, sans-serif",
-                  backgroundColor: "#363433",
-                  color: "#f2ca50",
-                  border: "1px solid rgba(242,202,80,0.3)",
-                  textAlign: "center" as const,
-                  outline: "none",
-                }}
-              />
-            ) : (
-              <button
-                onClick={() => setShowCustom(true)}
-                className="chip"
-                style={{ flex: 1, padding: "0.75rem 0.5rem", borderRadius: "0.75rem", backgroundColor: "#2b2a28", color: "#d0c5af", cursor: "pointer", border: "1px solid transparent", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <MaterialIcon name="more_horiz" />
-              </button>
-            )}
-          </div>
-
-          {/* People splitter */}
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "rgba(54,52,51,0.6)", backdropFilter: "blur(20px)", padding: "0.25rem", borderRadius: "9999px", border: "1px solid rgba(77,70,53,0.12)" }}>
-            <button
-              onClick={() => setNumPeople((n) => Math.max(1, n - 1))}
-              aria-label="Remove person"
-              className="person-btn"
-              style={{ width: "3rem", height: "3rem", display: "flex", alignItems: "center", justifyContent: "center", borderRadius: "9999px", color: "#d0c5af", cursor: "pointer", background: "none", border: "none" }}>
-              <MaterialIcon name="remove" />
-            </button>
-            <span style={{ fontFamily: "var(--font-noto-serif), Georgia, serif", fontSize: "1.25rem", color: "#e6e1df" }}>
-              {numPeople} {numPeople === 1 ? "person" : "people"}
-            </span>
-            <button
-              onClick={() => setNumPeople((n) => Math.min(50, n + 1))}
-              aria-label="Add person"
-              className="person-btn"
-              style={{ width: "3rem", height: "3rem", display: "flex", alignItems: "center", justifyContent: "center", borderRadius: "9999px", color: "#d0c5af", cursor: "pointer", background: "none", border: "none" }}>
-              <MaterialIcon name="add" />
-            </button>
-          </div>
-        </section>
-
-        {/* Results */}
-        <section style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-          {/* Hero card */}
-          <div style={{ padding: "2rem", borderRadius: "1.5rem", backgroundColor: "#1d1b1a", textAlign: "center" }}>
-            <label style={{ display: "block", fontSize: "0.625rem", letterSpacing: "0.3em", textTransform: "uppercase" as const, color: "rgba(242,202,80,0.7)", marginBottom: "1rem", fontFamily: "var(--font-inter), system-ui, sans-serif" }}>
-              Each Person Pays
-            </label>
-            <div style={{ fontFamily: "var(--font-noto-serif), Georgia, serif", fontSize: "3.5rem", lineHeight: 1, color: "#e6e1df", letterSpacing: "-0.02em", marginBottom: "0.5rem" }}>
-              ${fmt(result.perPerson)}
-            </div>
-            <div style={{ fontSize: "0.75rem", color: "rgba(208,197,175,0.6)", letterSpacing: "0.1em", textTransform: "uppercase" as const, fontFamily: "var(--font-inter), system-ui, sans-serif" }}>
-              Including ${fmt(tipEach)} tip each
-            </div>
-          </div>
-
-          {/* Tip + Total */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
-            <ResultCard label="Tip Amount" value={`$${fmt(result.tipAmount)}`} />
-            <ResultCard label="Total Due"  value={`$${fmt(result.totalDue)}`} />
-          </div>
-        </section>
-
-        {/* Round tip toggle */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: "1.5rem" }}>
-          <span style={{ fontSize: "0.75rem", textTransform: "uppercase" as const, letterSpacing: "0.12em", color: "rgba(208,197,175,0.8)", fontFamily: "var(--font-inter), system-ui, sans-serif" }}>
-            Round tip to whole dollar
-          </span>
-          <Toggle active={roundTip} onToggle={() => setRoundTip((v) => !v)} label="Round tip to whole dollar" />
+          <div style={{
+            height: "1px",
+            marginTop: "0.5rem",
+            background: "linear-gradient(to right, transparent, rgba(242,202,80,0.12) 30%, rgba(242,202,80,0.28) 55%, transparent)",
+          }} />
         </div>
 
-        {/* Round-up suggestion */}
-        {showRoundUp && (
-          <button
-            onClick={() => {
-              setShowCustom(true);
-              setCustomPct(String(result.roundUpTipPercent));
-            }}
-            className="roundup-btn"
-            style={{ marginTop: "1.5rem", width: "100%", padding: "1rem", fontSize: "0.75rem", fontFamily: "var(--font-inter), system-ui, sans-serif", textTransform: "uppercase" as const, letterSpacing: "0.2em", color: "#ffe088", border: "1px solid rgba(242,202,80,0.2)", borderRadius: "9999px", background: "none", cursor: "pointer" }}>
-            Round to ${result.roundUpTotal.toFixed(0)}.00 ({result.roundUpTipPercent}%)
-          </button>
-        )}
+        {/* ── Zone 2: Controls ─────────────────────────────────────── */}
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.625rem", marginBottom: "2.5rem" }}>
+
+          {/* Tip chips */}
+          <div>
+            <div style={{ display: "flex", gap: "0.5rem" }}>
+              {MAIN_CHIPS.map(({ label, pct }) => {
+                const active = tipPercent === pct && !moreActive;
+                return (
+                  <TipChip
+                    key={pct}
+                    label={label}
+                    pct={pct}
+                    active={active}
+                    onClick={() => { setTipPercent(pct); setShowMore(false); }}
+                  />
+                );
+              })}
+
+              <button
+                onClick={() => { haptic(); setShowMore((v) => !v); }}
+                aria-pressed={showMore}
+                aria-label="More tip options"
+                className={`chip${showMore || moreActive ? " more-open" : ""}`}
+                style={{
+                  flex: 1,
+                  padding: "0.625rem 0.25rem",
+                  borderRadius: "0.5rem",
+                  backgroundColor: "#1d1b1a",
+                  color:  showMore || moreActive ? "#f2ca50" : "#736b58",
+                  border: showMore || moreActive
+                    ? "1px solid rgba(242,202,80,0.35)"
+                    : "1px solid rgba(77,70,53,0.2)",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  transition: "color 0.2s, border-color 0.2s",
+                }}>
+                <MaterialIcon name={showMore ? "expand_less" : "more_horiz"} />
+              </button>
+            </div>
+
+            {/* More row — animated slide */}
+            <div style={{
+              maxHeight: showMore ? "72px" : "0px",
+              overflow: "hidden",
+              transition: "max-height 0.26s cubic-bezier(0.4, 0, 0.2, 1)",
+            }}>
+              <div style={{ display: "flex", gap: "0.5rem", paddingTop: "0.625rem" }}>
+                {MORE_CHIPS.map(({ label, pct }) => {
+                  const active = tipPercent === pct;
+                  return (
+                    <TipChip
+                      key={pct}
+                      label={label}
+                      pct={pct}
+                      active={active}
+                      unhinged={pct === 69}
+                      onClick={() => setTipPercent(pct)}
+                    />
+                  );
+                })}
+                <div style={{ flex: 1 }} />
+              </div>
+            </div>
+          </div>
+
+          {/* People wheel */}
+          <PeopleWheel value={numPeople} onChange={setNumPeople} />
+        </div>
+
+        {/* ── Zone 3: Results ──────────────────────────────────────── */}
+        <div style={{
+          borderRadius: "0.75rem",
+          backgroundColor: "#181716",
+          border: "1px solid rgba(77,70,53,0.16)",
+          overflow: "hidden",
+        }}>
+          {/* Tip — primary */}
+          <div style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            padding: "1rem 1.125rem",
+            borderBottom: "1px solid rgba(77,70,53,0.14)",
+          }}>
+            <span style={{
+              fontSize: "0.5rem",
+              letterSpacing: "0.22em",
+              textTransform: "uppercase" as const,
+              color: "rgba(242,202,80,0.55)",
+              fontFamily: "var(--font-inter), system-ui, sans-serif",
+            }}>
+              Tip
+            </span>
+            <span style={{
+              fontFamily: "var(--font-noto-serif), Georgia, serif",
+              fontSize: "2.25rem",
+              lineHeight: 1,
+              color: "#e6e1df",
+              letterSpacing: "-0.02em",
+              fontVariantNumeric: "tabular-nums",
+            }}>
+              ${fmt(result.tipAmount)}
+            </span>
+          </div>
+
+          {/* Total — secondary */}
+          <div style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            padding: "0.75rem 1.125rem",
+          }}>
+            <span style={{
+              fontSize: "0.5rem",
+              letterSpacing: "0.22em",
+              textTransform: "uppercase" as const,
+              color: "rgba(208,197,175,0.35)",
+              fontFamily: "var(--font-inter), system-ui, sans-serif",
+            }}>
+              Total
+            </span>
+            <span style={{
+              fontFamily: "var(--font-noto-serif), Georgia, serif",
+              fontSize: "1.25rem",
+              color: "#a09890",
+              fontVariantNumeric: "tabular-nums",
+            }}>
+              ${fmt(result.totalDue)}
+            </span>
+          </div>
+
+          {/* Per-person — only when splitting */}
+          {numPeople > 1 && (
+            <div style={{
+              padding: "0 1.125rem 0.75rem",
+              display: "flex",
+              justifyContent: "flex-end",
+            }}>
+              <span style={{
+                fontSize: "0.5625rem",
+                color: "rgba(208,197,175,0.25)",
+                letterSpacing: "0.06em",
+                fontVariantNumeric: "tabular-nums",
+              }}>
+                {numPeople} people · ${fmt(result.perPerson)} each
+              </span>
+            </div>
+          )}
+        </div>
+
       </main>
 
-      {/* Material Symbols + hover animations */}
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200');
 
@@ -243,131 +304,365 @@ export default function GratuityCalculator() {
           user-select: none;
         }
 
-        /* Numpad keys */
-        .numpad-key {
-          transition: background-color 0.15s, box-shadow 0.15s, color 0.15s;
-        }
-        .numpad-key:hover {
-          background-color: #1d1b1a !important;
-          color: #f2ca50 !important;
-          box-shadow: inset 0 0 24px rgba(242,202,80,0.07);
-        }
-        .numpad-key:active {
-          background-color: #2b2a28 !important;
-          box-shadow: inset 0 0 30px rgba(242,202,80,0.12);
+        input::placeholder {
+          color: rgba(230,225,223,0.18);
+          font-family: var(--font-noto-serif), Georgia, serif;
         }
 
-        /* Tip % chips */
         .chip {
-          transition: color 0.2s, border-color 0.2s, box-shadow 0.2s, background-color 0.2s;
+          transition: color 0.15s, border-color 0.15s, background-color 0.15s;
         }
-        .chip:hover:not(.chip-active) {
+        .chip:active:not(.chip-active):not(.chip-unhinged-active) {
           color: #f2ca50 !important;
           border-color: rgba(242,202,80,0.3) !important;
-          box-shadow: 0 0 14px rgba(242,202,80,0.2);
-        }
-        .chip-active {
-          box-shadow: 0 0 20px rgba(242,202,80,0.3), inset 0 0 20px rgba(242,202,80,0.04);
-          animation: chip-pulse 2.5s ease-in-out infinite;
-        }
-        @keyframes chip-pulse {
-          0%, 100% { box-shadow: 0 0 20px rgba(242,202,80,0.3), inset 0 0 20px rgba(242,202,80,0.04); }
-          50%       { box-shadow: 0 0 28px rgba(242,202,80,0.45), inset 0 0 24px rgba(242,202,80,0.07); }
         }
 
-        /* +/- people buttons */
-        .person-btn {
-          transition: color 0.2s, box-shadow 0.2s;
-        }
-        .person-btn:hover {
-          color: #f2ca50 !important;
-          box-shadow: 0 0 14px rgba(242,202,80,0.25);
+        /* ── Aurora wrapper — gold variant ──────────────────────── */
+        /*
+         * The wrapper is the stacking context (z-index: 0).
+         * ::before / ::after sit at z-index: -1 within it (paint step 2).
+         * The button child has no z-index so it renders at step 6 — on top.
+         * The button's solid #141312 background covers the interior; only
+         * the ring extending beyond the button edge is ever visible.
+         */
+        @property --aurora-pos {
+          syntax: '<angle>';
+          initial-value: 0deg;
+          inherits: false;
         }
 
-        /* Round-up suggestion */
-        .roundup-btn {
-          transition: box-shadow 0.2s, background-color 0.2s;
+        .aurora-wrap {
+          position: relative;
+          z-index: 0;
         }
-        .roundup-btn:hover {
-          box-shadow: 0 0 22px rgba(242,202,80,0.2);
-          background-color: rgba(242,202,80,0.04) !important;
+
+        .aurora-gold::before {
+          content: '';
+          position: absolute;
+          inset: -1.5px;
+          border-radius: 0.625rem;
+          background: conic-gradient(
+            from var(--aurora-pos),
+            transparent             0deg,
+            transparent            80deg,
+            rgba(255,220, 80,0.10)  93deg,
+            rgba(255,240,140,0.22) 104deg,
+            rgba(255,255,220,0.28) 110deg,
+            rgba(255,240,140,0.22) 116deg,
+            rgba(255,220, 80,0.10) 127deg,
+            transparent            140deg,
+            transparent            260deg,
+            rgba(255,220, 80,0.10) 273deg,
+            rgba(255,240,140,0.22) 284deg,
+            rgba(255,255,220,0.28) 290deg,
+            rgba(255,240,140,0.22) 296deg,
+            rgba(255,220, 80,0.10) 307deg,
+            transparent            320deg,
+            transparent            360deg
+          );
+          animation: aurora-travel 8s linear infinite;
+          pointer-events: none;
+          z-index: -1;
+        }
+
+        .aurora-gold::after {
+          content: '';
+          position: absolute;
+          inset: -4px;
+          border-radius: 0.75rem;
+          background: conic-gradient(
+            from var(--aurora-pos),
+            transparent             0deg,
+            transparent            78deg,
+            rgba(242,180,  0,0.06)  92deg,
+            rgba(255,220, 60,0.14) 104deg,
+            rgba(255,240,160,0.18) 110deg,
+            rgba(255,220, 60,0.14) 116deg,
+            rgba(242,180,  0,0.06) 128deg,
+            transparent            142deg,
+            transparent            258deg,
+            rgba(242,180,  0,0.06) 272deg,
+            rgba(255,220, 60,0.14) 284deg,
+            rgba(255,240,160,0.18) 290deg,
+            rgba(255,220, 60,0.14) 296deg,
+            rgba(242,180,  0,0.06) 308deg,
+            transparent            322deg,
+            transparent            360deg
+          );
+          filter: blur(5px);
+          animation: aurora-travel 8s linear infinite;
+          pointer-events: none;
+          z-index: -1;
+        }
+
+        @keyframes aurora-travel {
+          from { --aurora-pos: 0deg; }
+          to   { --aurora-pos: 360deg; }
+        }
+
+        /* ── Aurora wrapper — unhinged (chaos) variant ───────────── */
+        @property --chaos-pos {
+          syntax: '<angle>';
+          initial-value: 0deg;
+          inherits: false;
+        }
+
+        .aurora-chaos::before {
+          content: '';
+          position: absolute;
+          inset: -1.5px;
+          border-radius: 0.625rem;
+          background: conic-gradient(
+            from var(--chaos-pos),
+            transparent             0deg,
+            transparent            78deg,
+            rgba(255,160, 20,0.10)  90deg,
+            rgba(255, 80, 20,0.22) 102deg,
+            rgba(255,255,220,0.28) 110deg,
+            rgba(255, 40,100,0.22) 118deg,
+            rgba(200, 20,140,0.10) 130deg,
+            transparent            142deg,
+            transparent            258deg,
+            rgba(255,160, 20,0.10) 270deg,
+            rgba(255, 80, 20,0.22) 282deg,
+            rgba(255,255,220,0.28) 290deg,
+            rgba(255, 40,100,0.22) 298deg,
+            rgba(200, 20,140,0.10) 310deg,
+            transparent            322deg,
+            transparent            360deg
+          );
+          animation: chaos-travel 5s linear infinite;
+          pointer-events: none;
+          z-index: -1;
+        }
+
+        .aurora-chaos::after {
+          content: '';
+          position: absolute;
+          inset: -4px;
+          border-radius: 0.75rem;
+          background: conic-gradient(
+            from var(--chaos-pos),
+            transparent             0deg,
+            transparent            76deg,
+            rgba(255,140, 20,0.06)  89deg,
+            rgba(255, 60, 10,0.14) 102deg,
+            rgba(255,200,200,0.18) 110deg,
+            rgba(200, 20,120,0.14) 118deg,
+            rgba(160,  0,100,0.06) 131deg,
+            transparent            144deg,
+            transparent            256deg,
+            rgba(255,140, 20,0.06) 269deg,
+            rgba(255, 60, 10,0.14) 282deg,
+            rgba(255,200,200,0.18) 290deg,
+            rgba(200, 20,120,0.14) 298deg,
+            rgba(160,  0,100,0.06) 311deg,
+            transparent            324deg,
+            transparent            360deg
+          );
+          filter: blur(5px);
+          animation: chaos-travel 5s linear infinite;
+          pointer-events: none;
+          z-index: -1;
+        }
+
+        @keyframes chaos-travel {
+          from { --chaos-pos: 0deg; }
+          to   { --chaos-pos: 360deg; }
         }
       `}</style>
     </div>
   );
 }
 
-/* ── Sub-components ─────────────────────────────────────────────────────── */
+/* ── Sub-components ──────────────────────────────────────────────────────── */
 
 function MaterialIcon({ name }: { name: string }) {
   return <span className="material-symbols-outlined">{name}</span>;
 }
 
-function Toggle({ active, onToggle, label }: { active: boolean; onToggle: () => void; label: string }) {
-  return (
-    <button
-      onClick={onToggle}
-      aria-pressed={active}
-      aria-label={label}
-      style={{
-        width: "2.5rem",
-        height: "1.25rem",
-        borderRadius: "9999px",
-        backgroundColor: active ? "#f2ca50" : "#363433",
-        border: "1px solid rgba(77,70,53,0.25)",
-        position: "relative",
-        transition: "background-color 0.25s",
-        flexShrink: 0,
-        cursor: "pointer",
-      }}>
-      <div style={{
-        position: "absolute",
-        top: "0.2rem",
-        left: active ? "calc(100% - 0.95rem)" : "0.2rem",
-        width: "0.85rem",
-        height: "0.85rem",
-        borderRadius: "9999px",
-        backgroundColor: active ? "#241a00" : "#f2ca50",
-        boxShadow: "0 0 8px rgba(242,202,80,0.4)",
-        transition: "left 0.25s, background-color 0.25s",
-      }} />
-    </button>
-  );
-}
+function TipChip({
+  label, pct, active, unhinged = false, onClick,
+}: {
+  label: string; pct: number; active: boolean; unhinged?: boolean; onClick: () => void;
+}) {
+  // Aurora lives on the wrapper, NOT the button. The wrapper creates the stacking
+  // context; the button (no z-index) renders at step 6 inside it — above the
+  // ::before (step 2) — so the button's solid background covers the interior.
+  const wrapClass = active
+    ? unhinged ? "aurora-wrap aurora-chaos" : "aurora-wrap aurora-gold"
+    : "";
 
-function NumpadKey({ label, onClick, dim = false }: { label: React.ReactNode; onClick: () => void; dim?: boolean }) {
   return (
-    <button
-      onClick={onClick}
-      className="numpad-key"
-      style={{
-        aspectRatio: "1.5 / 1",
-        backgroundColor: "#141312",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        fontSize: "1.25rem",
-        fontWeight: 300,
-        fontFamily: "var(--font-inter), system-ui, sans-serif",
-        color: dim ? "#d0c5af" : "#e6e1df",
-        cursor: "pointer",
-        border: "none",
-        WebkitTapHighlightColor: "transparent",
-      }}>
-      {label}
-    </button>
-  );
-}
-
-function ResultCard({ label, value }: { label: string; value: string }) {
-  return (
-    <div style={{ padding: "1.5rem", borderRadius: "1rem", backgroundColor: "#0f0e0d", display: "flex", flexDirection: "column", justifyContent: "center" }}>
-      <label style={{ display: "block", fontSize: "0.5625rem", letterSpacing: "0.15em", textTransform: "uppercase" as const, color: "rgba(208,197,175,0.6)", marginBottom: "0.25rem", fontFamily: "var(--font-inter), system-ui, sans-serif" }}>
-        {label}
-      </label>
-      <div style={{ fontFamily: "var(--font-noto-serif), Georgia, serif", fontSize: "1.5rem", color: "#e6e1df" }}>
-        {value}
-      </div>
+    <div className={wrapClass} style={{ flex: 1 }}>
+      <button
+        onClick={() => { haptic(); onClick(); }}
+        className="chip"
+        style={{
+          width: "100%",
+          padding: "0.625rem 0.25rem",
+          borderRadius: "0.5rem",
+          cursor: "pointer",
+          border: active
+            ? `1px solid ${unhinged ? "rgba(255,100,60,0.35)" : "rgba(242,202,80,0.35)"}`
+            : "1px solid rgba(77,70,53,0.2)",
+          backgroundColor: active ? "#141312" : "#1d1b1a",
+          color: active ? (unhinged ? "#ff8855" : "#f2ca50") : "#736b58",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          gap: "0.2rem",
+          fontFamily: "var(--font-inter), system-ui, sans-serif",
+          position: "relative",
+        }}>
+        <span style={{
+          fontSize: "0.5rem",
+          letterSpacing: "0.14em",
+          textTransform: "uppercase" as const,
+          fontWeight: 500,
+          color: active ? (unhinged ? "#ff8855" : "#f2ca50") : "rgba(208,197,175,0.35)",
+        }}>
+          {label}
+        </span>
+        <span style={{
+          fontSize: "0.9375rem",
+          fontWeight: active ? 600 : 400,
+          fontVariantNumeric: "tabular-nums",
+        }}>
+          {pct}%
+        </span>
+      </button>
     </div>
   );
 }
+
+const ITEM_W = 72; // px per slot in the horizontal wheel
+
+function PeopleWheel({ value, onChange }: { value: number; onChange: (n: number) => void }) {
+  const dragRef = useRef<{ startX: number; startVal: number } | null>(null);
+  const [visualOffset, setVisualOffset] = useState(0);
+
+  const commit = useCallback((rawX: number) => {
+    if (!dragRef.current) return;
+    const dx = rawX - dragRef.current.startX;          // positive = drag right = more people
+    const rawVal = dragRef.current.startVal + dx / ITEM_W;
+    const clamped = Math.max(1, Math.min(50, rawVal));
+    const rounded = Math.round(clamped);
+    if (rounded !== value) {
+      haptic(6);
+      onChange(rounded);
+    }
+    setVisualOffset((rounded - clamped) * ITEM_W);     // items slide left as value rises
+  }, [value, onChange]);
+
+  const onPointerDown = (e: React.PointerEvent) => {
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    dragRef.current = { startX: e.clientX, startVal: value };
+    setVisualOffset(0);
+  };
+
+  const onPointerMove = (e: React.PointerEvent) => {
+    if (!dragRef.current) return;
+    commit(e.clientX);
+  };
+
+  const onPointerUp = () => {
+    dragRef.current = null;
+    setVisualOffset(0);
+  };
+
+  return (
+    <div
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+      onPointerCancel={onPointerUp}
+      style={{
+        position: "relative",
+        height: "52px",
+        overflow: "hidden",
+        cursor: "ew-resize",
+        userSelect: "none",
+        touchAction: "none",
+        borderRadius: "0.5rem",
+        background: "#1d1b1a",
+        border: "1px solid rgba(77,70,53,0.2)",
+      }}
+      aria-label={`${value} ${value === 1 ? "person" : "people"}`}
+      role="spinbutton"
+      aria-valuenow={value}
+      aria-valuemin={1}
+      aria-valuemax={50}
+    >
+      {/* Vertical selection window at center */}
+      <div style={{
+        position: "absolute",
+        top: "0.5rem",
+        bottom: "0.5rem",
+        left: "50%",
+        width: `${ITEM_W}px`,
+        transform: "translateX(-50%)",
+        borderRadius: "0.3rem",
+        background: "rgba(242,202,80,0.04)",
+        borderLeft: "1px solid rgba(242,202,80,0.10)",
+        borderRight: "1px solid rgba(242,202,80,0.10)",
+        pointerEvents: "none",
+      }} />
+
+      {([-2, -1, 0, 1, 2] as const).map((offset) => {
+        const n = value + offset;
+        const valid = n >= 1 && n <= 50;
+        const dist = Math.abs(offset);
+        const x = offset * ITEM_W + visualOffset;
+        return (
+          <div
+            key={offset}
+            style={{
+              position: "absolute",
+              top: "50%",
+              left: "50%",
+              transform: `translate(calc(-50% + ${x}px), -50%) scale(${dist === 0 ? 1 : dist === 1 ? 0.78 : 0.62})`,
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              gap: "0.1rem",
+              opacity: valid ? (dist === 0 ? 1 : dist === 1 ? 0.32 : 0.09) : 0,
+              transition: dragRef.current ? "none" : "transform 0.18s ease, opacity 0.18s ease",
+              pointerEvents: "none",
+              whiteSpace: "nowrap",
+            }}
+          >
+            <span style={{
+              fontFamily: "var(--font-noto-serif), Georgia, serif",
+              fontSize: dist === 0 ? "1rem" : "0.875rem",
+              color: dist === 0 ? "#e6e1df" : "#d0c5af",
+              lineHeight: 1,
+              fontVariantNumeric: "tabular-nums",
+            }}>
+              {valid ? n : ""}
+            </span>
+            {dist === 0 && (
+              <span style={{
+                fontSize: "0.4375rem",
+                letterSpacing: "0.16em",
+                textTransform: "uppercase" as const,
+                color: "rgba(208,197,175,0.4)",
+                fontFamily: "var(--font-inter), system-ui, sans-serif",
+              }}>
+                {n === 1 ? "person" : "people"}
+              </span>
+            )}
+          </div>
+        );
+      })}
+
+      {/* Left/right edge fades */}
+      <div style={{
+        position: "absolute", inset: 0, pointerEvents: "none",
+        background: "linear-gradient(to right, #1d1b1a 0%, transparent 22%, transparent 78%, #1d1b1a 100%)",
+        borderRadius: "0.5rem",
+      }} />
+    </div>
+  );
+}
+
