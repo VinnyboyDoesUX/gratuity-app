@@ -1,0 +1,261 @@
+/* ─────────────────────────────────────────────────────────────────────────
+   Gratuity — Colors & Type
+   "High-End Financial Editorial" — dark surfaces, gold accents,
+   serif display, clean sans body.
+   ───────────────────────────────────────────────────────────────────────── */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Serif:ital,wght@0,400;0,700;1,400&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200');
+
+:root {
+  /* ── Surface hierarchy (dark-first) ─────────────────────────────────── */
+  --g-surface-dim:               #141312;  /* App bg, numpad keys */
+  --g-surface:                   #141312;
+  --g-surface-lowest:            #0f0e0d;  /* Inset result cards */
+  --g-surface-low:               #1d1b1a;  /* Hero card, hover */
+  --g-surface:                   #211f1e;
+  --g-surface-high:              #2b2a28;  /* Chips (inactive) */
+  --g-surface-highest:           #363433;  /* Custom chip, glass */
+  --g-surface-bright:            #3b3937;
+
+  /* ── Primary — Gold ─────────────────────────────────────────────────── */
+  --g-gold:                      #f2ca50;  /* Primary gold */
+  --g-gold-container:            #d4af37;  /* Antique gold (header, gradient end) */
+  --g-gold-fixed:                #ffe088;  /* Light gold (roundup text) */
+  --g-gold-dim:                  #e9c349;  /* Surface tint */
+  --g-on-gold:                   #3c2f00;  /* Text on gold */
+  --g-on-gold-container:         #554300;
+  --g-on-gold-fixed:             #241a00;  /* Dark amber */
+  --g-inverse-gold:              #735c00;
+
+  /* ── Secondary (neutrals) ───────────────────────────────────────────── */
+  --g-secondary:                 #c6c7c2;
+  --g-secondary-container:       #484a46;
+  --g-secondary-fixed:           #e3e3de;
+
+  /* ── Tertiary (accent blue, rarely used) ────────────────────────────── */
+  --g-tertiary:                  #bfcdff;
+  --g-tertiary-container:        #97b0ff;
+
+  /* ── Foreground / text ──────────────────────────────────────────────── */
+  --g-fg:                        #e6e1df;  /* Primary text on dark */
+  --g-fg-variant:                #d0c5af;  /* Secondary / label text (warm beige) */
+  --g-fg-muted:                  rgba(208,197,175,0.8);
+  --g-fg-dim:                    rgba(208,197,175,0.6);
+
+  /* ── Outlines ───────────────────────────────────────────────────────── */
+  --g-outline:                   #99907c;
+  --g-outline-variant:           #4d4635;
+  --g-outline-gold:              rgba(242,202,80,0.65);
+  --g-outline-gold-soft:         rgba(242,202,80,0.3);
+
+  /* ── State ──────────────────────────────────────────────────────────── */
+  --g-error:                     #ffb4ab;
+  --g-error-container:           #93000a;
+  --g-on-error:                  #690005;
+  --g-on-error-container:        #ffdad6;
+
+  /* ── Radii ──────────────────────────────────────────────────────────── */
+  --g-radius-xs:                 0.125rem;  /* 2px */
+  --g-radius-sm:                 0.25rem;   /* 4px */
+  --g-radius-md:                 0.5rem;    /* 8px */
+  --g-radius-lg:                 0.75rem;   /* 12px — chips, numpad grid */
+  --g-radius-xl:                 1rem;      /* 16px — result cards */
+  --g-radius-2xl:                1.5rem;    /* 24px — hero card */
+  --g-radius-full:               9999px;    /* people splitter, toggle, roundup */
+
+  /* ── Spacing (4-pt base) ────────────────────────────────────────────── */
+  --g-space-1:                   0.25rem;
+  --g-space-2:                   0.5rem;
+  --g-space-3:                   0.75rem;
+  --g-space-4:                   1rem;
+  --g-space-6:                   1.5rem;
+  --g-space-8:                   2rem;
+  --g-space-10:                  2.5rem;
+  --g-space-12:                  3rem;
+
+  /* ── Shadows / glow ─────────────────────────────────────────────────── */
+  --g-shadow-luminous:           0 4px 40px rgba(212,175,55,0.08);
+  --g-glow-gold-sm:              0 0 10px rgba(242,202,80,0.35);
+  --g-glow-gold-md:              0 0 14px rgba(242,202,80,0.25);
+  --g-glow-gold-lg:              0 0 20px rgba(242,202,80,0.3);
+  --g-glow-gold-xl:              0 0 28px rgba(242,202,80,0.45);
+  --g-inset-gold-sm:              inset 0 0 20px rgba(242,202,80,0.04);
+  --g-inset-gold-md:              inset 0 0 24px rgba(242,202,80,0.07);
+  --g-inset-gold-lg:              inset 0 0 30px rgba(242,202,80,0.12);
+
+  /* ── Gradients ──────────────────────────────────────────────────────── */
+  --g-gradient-gold:             linear-gradient(135deg, #F2CA50 0%, #D4AF37 100%);
+  --g-gradient-gold-underline:   radial-gradient(ellipse at center, rgba(242,202,80,0.45) 0%, transparent 70%);
+
+  /* ── Fonts ──────────────────────────────────────────────────────────── */
+  --g-font-display:              'Noto Serif', Georgia, 'Times New Roman', serif;
+  --g-font-body:                 'Inter', system-ui, -apple-system, sans-serif;
+  --g-font-label:                'Inter', system-ui, -apple-system, sans-serif;
+  --g-font-icon:                 'Material Symbols Outlined';
+
+  /* ── Letter spacing / tracking ──────────────────────────────────────── */
+  --g-track-tight:               -0.02em;   /* Large serif amounts */
+  --g-track-normal:              0;
+  --g-track-wide:                0.1em;     /* Small uppercase labels */
+  --g-track-wider:               0.12em;    /* Toggle labels */
+  --g-track-widest:              0.2em;     /* "Check Total" eyebrow */
+  --g-track-brand:               0.3em;     /* "GRATUITY" wordmark, hero eyebrow */
+
+  /* ── Motion ─────────────────────────────────────────────────────────── */
+  --g-ease-out:                  cubic-bezier(0.22, 1, 0.36, 1);
+  --g-ease-soft:                 ease-in-out;
+  --g-dur-fast:                  0.15s;
+  --g-dur-base:                  0.2s;
+  --g-dur-slow:                  0.25s;
+  --g-dur-pulse:                 2.5s;
+}
+
+/* ═════════════════════════════════════════════════════════════════════════
+   Semantic typography
+   Pair: Noto Serif (display, amounts) × Inter (body, labels, UI)
+   ═════════════════════════════════════════════════════════════════════════ */
+
+.g-wordmark {
+  font-family: var(--g-font-display);
+  font-size: 1.125rem;          /* 18px */
+  font-weight: 400;
+  letter-spacing: var(--g-track-brand);
+  color: var(--g-gold-container);
+  text-transform: uppercase;
+}
+
+.g-display-xl {                  /* Check total readout */
+  font-family: var(--g-font-display);
+  font-size: 4rem;               /* 64px */
+  line-height: 1;
+  letter-spacing: var(--g-track-tight);
+  color: var(--g-fg);
+  font-weight: 400;
+}
+
+.g-display-lg {                  /* Each-person hero readout */
+  font-family: var(--g-font-display);
+  font-size: 3.5rem;             /* 56px */
+  line-height: 1;
+  letter-spacing: var(--g-track-tight);
+  color: var(--g-fg);
+  font-weight: 400;
+}
+
+.g-display-md {                  /* Result-card amounts */
+  font-family: var(--g-font-display);
+  font-size: 1.5rem;             /* 24px */
+  color: var(--g-fg);
+  font-weight: 400;
+  line-height: 1.1;
+}
+
+.g-display-sm {                  /* People count */
+  font-family: var(--g-font-display);
+  font-size: 1.25rem;             /* 20px */
+  color: var(--g-fg);
+  font-weight: 400;
+}
+
+.g-body {
+  font-family: var(--g-font-body);
+  font-size: 0.875rem;            /* 14px */
+  color: var(--g-fg);
+  line-height: 1.45;
+  font-weight: 400;
+}
+
+.g-body-sm {
+  font-family: var(--g-font-body);
+  font-size: 0.75rem;             /* 12px */
+  color: var(--g-fg-muted);
+  font-weight: 400;
+}
+
+.g-label {                        /* Toggle labels, hero sub-caption */
+  font-family: var(--g-font-label);
+  font-size: 0.75rem;             /* 12px */
+  text-transform: uppercase;
+  letter-spacing: var(--g-track-wider);
+  color: var(--g-fg-muted);
+  font-weight: 400;
+}
+
+.g-eyebrow {                     /* "CHECK TOTAL" */
+  font-family: var(--g-font-label);
+  font-size: 0.6875rem;           /* 11px */
+  text-transform: uppercase;
+  letter-spacing: var(--g-track-widest);
+  color: var(--g-fg-variant);
+  font-weight: 400;
+}
+
+.g-eyebrow-gold {                 /* "EACH PERSON PAYS" */
+  font-family: var(--g-font-label);
+  font-size: 0.625rem;            /* 10px */
+  text-transform: uppercase;
+  letter-spacing: var(--g-track-brand);
+  color: rgba(242,202,80,0.7);
+  font-weight: 400;
+}
+
+.g-caption {                      /* "Including $X tip each" */
+  font-family: var(--g-font-body);
+  font-size: 0.75rem;             /* 12px */
+  text-transform: uppercase;
+  letter-spacing: var(--g-track-wide);
+  color: var(--g-fg-dim);
+}
+
+.g-micro {                        /* Tiny card labels */
+  font-family: var(--g-font-body);
+  font-size: 0.5625rem;           /* 9px */
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  color: var(--g-fg-dim);
+}
+
+.g-numeric {                      /* Numpad keys */
+  font-family: var(--g-font-body);
+  font-size: 1.25rem;             /* 20px */
+  font-weight: 300;
+  color: var(--g-fg);
+}
+
+/* ═════════════════════════════════════════════════════════════════════════
+   Base utilities
+   ═════════════════════════════════════════════════════════════════════════ */
+
+.g-gold-gradient {
+  background: var(--g-gradient-gold);
+}
+
+.g-glass {
+  background: rgba(54,52,51,0.6);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(77,70,53,0.12);
+}
+
+.g-luminous {
+  box-shadow: var(--g-shadow-luminous);
+}
+
+.g-gold-glow {
+  box-shadow: var(--g-glow-gold-sm);
+}
+
+.g-gold-underline {
+  height: 2px;
+  background: var(--g-gradient-gold-underline);
+  opacity: 0.7;
+}
+
+.material-symbols-outlined {
+  font-family: var(--g-font-icon);
+  font-variation-settings: 'FILL' 0, 'wght' 200, 'GRAD' 0, 'opsz' 24;
+  font-size: 20px;
+  line-height: 1;
+  user-select: none;
+}
