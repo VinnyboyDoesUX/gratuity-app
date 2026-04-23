@@ -1,668 +1,394 @@
 "use client";
 
-import { useState, useCallback, useRef } from "react";
-import { calculate } from "@/utils/calculate";
+import { useState, useCallback, useEffect, useMemo } from "react";
 
-function fmt(value: number) {
-  return value.toLocaleString("en-US", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
-}
+// ── Types ─────────────────────────────────────────────────────────────────────
 
-const MAIN_CHIPS = [
-  { label: "Bad",    pct: 15 },
-  { label: "Decent", pct: 18 },
-  { label: "Good",   pct: 20 },
+type TierKey = "bad" | "decent" | "good" | "unhinged";
+type UnhingedStyle = "glitch" | "matrix" | "casino";
+
+// ── Constants ─────────────────────────────────────────────────────────────────
+
+const TIERS = [
+  { key: "bad"      as TierKey, label: "Bad",      pct: 10,  glyph: "!",  cls: "t-bad" },
+  { key: "decent"   as TierKey, label: "Decent",   pct: 18,  glyph: "·",  cls: "t-decent" },
+  { key: "good"     as TierKey, label: "Good",     pct: 25,  glyph: "✦",  cls: "t-good" },
+  { key: "unhinged" as TierKey, label: "Unhinged", pct: 100, glyph: "∞",  cls: "t-unhinged" },
 ] as const;
 
-const MORE_CHIPS = [
-  { label: "None",     pct: 0  },
-  { label: "Amazing",  pct: 30 },
-  { label: "Unhinged", pct: 69 },
-] as const;
+// ── Haptics ───────────────────────────────────────────────────────────────────
 
-function haptic(ms = 8) {
-  if (typeof navigator !== "undefined" && navigator.vibrate) {
-    navigator.vibrate(ms);
+function safe(pattern: number | number[]) {
+  if (typeof navigator !== "undefined" && typeof navigator.vibrate === "function") {
+    try { navigator.vibrate(pattern); } catch {}
   }
 }
+const haptics = {
+  tick:     () => safe(8),
+  soft:     () => safe(12),
+  pulse:    () => safe([18, 40, 22]),
+  chaos:    () => safe([6, 18, 10, 24, 8, 32, 14, 18, 10, 40, 6, 22]),
+  unhinged: () => safe([80, 30, 80, 30, 160]),
+};
+
+// ── TickerNumber ──────────────────────────────────────────────────────────────
+
+function TickerDigit({ value, isPunct, punctChar }: { value?: number; isPunct: boolean; punctChar?: string }) {
+  if (isPunct) {
+    return (
+      <span className="ticker-digit punct">
+        <span className="ticker-digit-inner"><span>{punctChar}</span></span>
+      </span>
+    );
+  }
+  const offset = -(value ?? 0) * 1.05;
+  return (
+    <span className="ticker-digit" aria-hidden="true">
+      <span className="ticker-digit-inner" style={{ transform: `translateY(${offset}em)` }}>
+        {"0123456789".split("").map((d) => <span key={d}>{d}</span>)}
+      </span>
+    </span>
+  );
+}
+
+function TickerNumber({ value }: { value: string }) {
+  const cells = useMemo(() =>
+    value.split("").map((ch, i) =>
+      /\d/.test(ch)
+        ? { key: i, isPunct: false as const, value: parseInt(ch, 10) }
+        : { key: i, isPunct: true  as const, punctChar: ch }
+    ), [value]);
+
+  return (
+    <span className="ticker" aria-label={value} key={value.length}>
+      {cells.map(({ key, ...rest }) => <TickerDigit key={key} {...rest} />)}
+    </span>
+  );
+}
+
+// ── UnhingedFX ────────────────────────────────────────────────────────────────
+
+function UnhingedFX({ active, style }: { active: boolean; style: UnhingedStyle }) {
+  const cols = useMemo(() => {
+    if (!active || style !== "matrix") return [];
+    const chars = "$¢€£¥0123456789%∞";
+    return Array.from({ length: 14 }, (_, i) => {
+      let s = "";
+      const len = 16 + Math.floor(Math.random() * 18);
+      for (let j = 0; j < len; j++) s += chars[Math.floor(Math.random() * chars.length)] + "\n";
+      return {
+        left: (i / 14) * 100 + (Math.random() * 4 - 2),
+        duration: 4 + Math.random() * 6,
+        delay: -Math.random() * 6,
+        text: s,
+        opacity: 0.35 + Math.random() * 0.5,
+      };
+    });
+  }, [active, style]);
+
+  const coins = useMemo(() => {
+    if (!active || style !== "casino") return [];
+    return Array.from({ length: 26 }, () => ({
+      left: Math.random() * 100,
+      duration: 2.4 + Math.random() * 3,
+      delay: -Math.random() * 5,
+      size: 10 + Math.random() * 16,
+    }));
+  }, [active, style]);
+
+  if (!active) return null;
+
+  if (style === "matrix") {
+    return (
+      <div className="fx-layer" aria-hidden="true">
+        {cols.map((c, i) => (
+          <div key={i} className="matrix-col" style={{
+            left: c.left + "%",
+            animationDuration: c.duration + "s",
+            animationDelay: c.delay + "s",
+            opacity: c.opacity,
+          }}>{c.text}</div>
+        ))}
+        <div className="fx-scanlines" />
+        <div className="fx-vignette" />
+      </div>
+    );
+  }
+
+  if (style === "casino") {
+    return (
+      <div className="fx-layer" aria-hidden="true">
+        {coins.map((c, i) => (
+          <div key={i} className="coin" style={{
+            left: c.left + "%",
+            width: c.size,
+            height: c.size,
+            animationDuration: c.duration + "s",
+            animationDelay: c.delay + "s",
+          }} />
+        ))}
+        <div className="fx-vignette" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="fx-layer" aria-hidden="true">
+      <div className="glitch-bar b1" />
+      <div className="glitch-bar b2" />
+      <div className="glitch-bar b3" />
+      <div className="glitch-bar b4" />
+      <div className="fx-scanlines" />
+      <div className="fx-invert-burst" />
+      <div className="fx-vignette" />
+    </div>
+  );
+}
+
+// ── TweaksPanel ───────────────────────────────────────────────────────────────
+
+function TweaksPanel({ open, onClose, unhingedStyle, setUnhingedStyle }: {
+  open: boolean;
+  onClose: () => void;
+  unhingedStyle: UnhingedStyle;
+  setUnhingedStyle: (s: UnhingedStyle) => void;
+}) {
+  if (!open) return null;
+  return (
+    <div className="tweaks-scrim" onClick={onClose}>
+      <div className="tweaks-sheet" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Tweaks">
+        <div className="tweaks-grip" />
+        <div className="tweaks-title">Tweaks</div>
+        <div className="tweak-group">
+          <span className="tweak-group-label">Unhinged Style</span>
+          <div className="tweak-options">
+            {(["glitch", "matrix", "casino"] as const).map((k) => (
+              <button
+                key={k}
+                className={"tweak-opt" + (unhingedStyle === k ? " active" : "")}
+                onClick={() => setUnhingedStyle(k)}
+              >
+                {k.charAt(0).toUpperCase() + k.slice(1)}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div style={{ textAlign: "center", fontSize: "0.6875rem", letterSpacing: "0.18em", textTransform: "uppercase", color: "var(--g-fg-dim)", marginTop: "1rem" }}>
+          Tap Unhinged to preview
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Main ──────────────────────────────────────────────────────────────────────
 
 export default function GratuityCalculator() {
-  const [billInput,  setBillInput]  = useState("");
-  const [tipPercent, setTipPercent] = useState(20);
-  const [showMore,   setShowMore]   = useState(false);
-  const [numPeople,  setNumPeople]  = useState(2);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const [billStr,      setBillStr]      = useState("0");
+  const [focused,      setFocused]      = useState(false);
+  const [activeTier,   setActiveTier]   = useState<TierKey>("decent");
+  const [customPct,    setCustomPct]    = useState("");
+  const [pulseKey,     setPulseKey]     = useState(0);
+  const [tweaksOpen,   setTweaksOpen]   = useState(false);
+  const [unhingedStyle, setUnhingedStyle] = useState<UnhingedStyle>("glitch");
 
-  const billAmount = parseFloat(billInput) || 0;
+  const cents      = parseInt(billStr.replace(/\D/g, "") || "0", 10);
+  const billAmount = cents / 100;
 
-  const handleBillChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    let v = e.target.value.replace(/[^0-9.]/g, "");
-    // enforce single decimal point
-    const dot = v.indexOf(".");
-    if (dot !== -1) v = v.slice(0, dot + 1) + v.slice(dot + 1).replace(/\./g, "");
-    // max 2 decimal places
-    if (dot !== -1 && v.length > dot + 3) v = v.slice(0, dot + 3);
-    // cap at $99,999
-    if (parseFloat(v) > 99999) return;
-    setBillInput(v);
+  const tierPct   = TIERS.find((t) => t.key === activeTier)?.pct ?? 18;
+  const customNum = parseFloat(customPct);
+  const useCustom = customPct !== "" && !isNaN(customNum) && customNum >= 0;
+  const activePct = useCustom ? customNum : tierPct;
+  const isUnhinged = activeTier === "unhinged" && !useCustom;
+
+  const tipAmount = Math.round(billAmount * activePct) / 100;
+  const totalDue  = billAmount + tipAmount;
+
+  useEffect(() => { setPulseKey((k) => k + 1); }, [billStr]);
+
+  // Wire the hidden system-keyboard input
+  useEffect(() => {
+    const input = document.getElementById("bill-input") as HTMLInputElement | null;
+    if (!input) return;
+    input.value = billStr === "0" ? "" : String(cents);
+
+    const onInput = (e: Event) => {
+      const digits = (e.target as HTMLInputElement).value.replace(/\D/g, "").slice(0, 9);
+      setBillStr(digits.length ? digits : "0");
+      haptics.tick();
+    };
+    const onFocus = () => setFocused(true);
+    const onBlur  = () => setFocused(false);
+    const onKey   = (e: KeyboardEvent) => {
+      if (e.key === "Backspace" || /^[0-9]$/.test(e.key)) haptics.tick();
+    };
+
+    input.addEventListener("input", onInput);
+    input.addEventListener("focus", onFocus);
+    input.addEventListener("blur",  onBlur);
+    input.addEventListener("keydown", onKey);
+    return () => {
+      input.removeEventListener("input", onInput);
+      input.removeEventListener("focus", onFocus);
+      input.removeEventListener("blur",  onBlur);
+      input.removeEventListener("keydown", onKey);
+    };
+  }, [billStr, cents]);
+
+  const handleTap = () => {
+    const input = document.getElementById("bill-input") as HTMLInputElement | null;
+    if (input) { input.focus(); setTimeout(() => input.focus(), 20); }
   };
 
-  const result = calculate({
-    billAmount,
-    taxAmount: 0,
-    tipPercent,
-    numPeople,
-    tipOnSubtotal: false,
-    roundTip: false,
-  });
+  const handlePick = useCallback((key: TierKey) => {
+    setActiveTier(key);
+    setCustomPct("");
+    if (key === "unhinged") haptics.unhinged();
+    else if (key === "good") haptics.pulse();
+    else haptics.soft();
+  }, []);
 
-  const moreActive = MORE_CHIPS.some((c) => c.pct === tipPercent);
+  const handleCustom = useCallback((v: string) => {
+    setCustomPct(v);
+    haptics.tick();
+  }, []);
+
+  const formatted = billAmount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const [wholePart, decPart] = formatted.split(".");
+  const isEmpty = cents === 0;
+
+  const tipFormatted   = tipAmount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const totalFormatted = totalDue.toLocaleString("en-US",  { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  const shellCls = "shell tier-" + (isUnhinged ? "unhinged" : useCustom ? "decent" : activeTier);
 
   return (
-    <div style={{
-      minHeight: "100dvh",
-      backgroundColor: "#141312",
-      color: "#e6e1df",
-      fontFamily: "var(--font-inter), system-ui, sans-serif",
-    }}>
-      <main style={{
-        paddingTop: "calc(env(safe-area-inset-top, 0px) + 2.5rem)",
-        paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 2rem)",
-        paddingLeft: "1.25rem",
-        paddingRight: "1.25rem",
-        maxWidth: "28rem",
-        width: "100%",
-        margin: "0 auto",
-      }}>
+    <div className={shellCls}>
+      {/* Hidden system-keyboard input */}
+      <input
+        id="bill-input"
+        type="tel"
+        inputMode="decimal"
+        autoComplete="off"
+        style={{ position: "fixed", opacity: 0, pointerEvents: "none", top: 0, left: 0, width: "1px", height: "1px" }}
+      />
 
-        {/* ── Zone 1: Bill input ───────────────────────────────────── */}
-        <div
-          style={{ marginBottom: "2.5rem", cursor: "text" }}
-          onClick={() => inputRef.current?.focus()}
-        >
-          <p style={{
-            fontSize: "0.5rem",
-            letterSpacing: "0.22em",
-            textTransform: "uppercase",
-            color: "rgba(208,197,175,0.35)",
-            marginBottom: "0.625rem",
-            fontFamily: "var(--font-inter), system-ui, sans-serif",
-          }}>
-            Bill
-          </p>
+      <div className="shell-inner" style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: "100dvh" }}>
 
-          <div style={{ display: "flex", alignItems: "baseline" }}>
-            <span style={{
-              fontFamily: "var(--font-noto-serif), Georgia, serif",
-              fontSize: "3rem",
-              lineHeight: 1,
-              color: "rgba(242,202,80,0.25)",
-              fontWeight: 300,
-              paddingRight: "0.2rem",
-              flexShrink: 0,
-            }}>
-              $
-            </span>
-            <input
-              ref={inputRef}
-              type="text"
-              inputMode="decimal"
-              pattern="[0-9]*\.?[0-9]{0,2}"
-              placeholder="0.00"
-              value={billInput}
-              onChange={handleBillChange}
-              style={{
-                flex: 1,
-                background: "transparent",
-                border: "none",
-                outline: "none",
-                fontFamily: "var(--font-noto-serif), Georgia, serif",
-                fontSize: "3rem",
-                lineHeight: 1,
-                letterSpacing: "-0.02em",
-                color: billInput ? "#e6e1df" : "rgba(230,225,223,0.2)",
-                textAlign: "right",
-                width: "100%",
-                fontVariantNumeric: "tabular-nums",
-                WebkitTapHighlightColor: "transparent",
-                caretColor: "#f2ca50",
-              }}
-            />
-          </div>
-
-          <div style={{
-            height: "1px",
-            marginTop: "0.5rem",
-            background: "linear-gradient(to right, transparent, rgba(242,202,80,0.12) 30%, rgba(242,202,80,0.28) 55%, transparent)",
-          }} />
-        </div>
-
-        {/* ── Zone 2: Controls ─────────────────────────────────────── */}
-        <div style={{ display: "flex", flexDirection: "column", gap: "0.625rem", marginBottom: "2.5rem" }}>
-
-          {/* Tip chips */}
-          <div>
-            <div style={{ display: "flex", gap: "0.5rem" }}>
-              {MAIN_CHIPS.map(({ label, pct }) => {
-                const active = tipPercent === pct && !moreActive;
-                return (
-                  <TipChip
-                    key={pct}
-                    label={label}
-                    pct={pct}
-                    active={active}
-                    onClick={() => { setTipPercent(pct); setShowMore(false); }}
-                  />
-                );
-              })}
-
-              <button
-                onClick={() => { haptic(); setShowMore((v) => !v); }}
-                aria-pressed={showMore}
-                aria-label="More tip options"
-                className={`chip${showMore || moreActive ? " more-open" : ""}`}
-                style={{
-                  flex: 1,
-                  padding: "0.625rem 0.25rem",
-                  borderRadius: "0.5rem",
-                  backgroundColor: "#1d1b1a",
-                  color:  showMore || moreActive ? "#f2ca50" : "#736b58",
-                  border: showMore || moreActive
-                    ? "1px solid rgba(242,202,80,0.35)"
-                    : "1px solid rgba(77,70,53,0.2)",
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  transition: "color 0.2s, border-color 0.2s",
-                }}>
-                <MaterialIcon name={showMore ? "expand_less" : "more_horiz"} />
-              </button>
-            </div>
-
-            {/* More row — animated slide */}
-            <div style={{
-              maxHeight: showMore ? "72px" : "0px",
-              overflow: "hidden",
-              transition: "max-height 0.26s cubic-bezier(0.4, 0, 0.2, 1)",
-            }}>
-              <div style={{ display: "flex", gap: "0.5rem", paddingTop: "0.625rem" }}>
-                {MORE_CHIPS.map(({ label, pct }) => {
-                  const active = tipPercent === pct;
-                  return (
-                    <TipChip
-                      key={pct}
-                      label={label}
-                      pct={pct}
-                      active={active}
-                      unhinged={pct === 69}
-                      onClick={() => setTipPercent(pct)}
-                    />
-                  );
-                })}
-                <div style={{ flex: 1 }} />
-              </div>
-            </div>
-          </div>
-
-          {/* People wheel */}
-          <PeopleWheel value={numPeople} onChange={setNumPeople} />
-        </div>
-
-        {/* ── Zone 3: Results ──────────────────────────────────────── */}
-        <div style={{
-          borderRadius: "0.75rem",
-          backgroundColor: "#181716",
-          border: "1px solid rgba(77,70,53,0.16)",
-          overflow: "hidden",
-        }}>
-          {/* Tip — primary */}
-          <div style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            padding: "1rem 1.125rem",
-            borderBottom: "1px solid rgba(77,70,53,0.14)",
-          }}>
-            <span style={{
-              fontSize: "0.5rem",
-              letterSpacing: "0.22em",
-              textTransform: "uppercase" as const,
-              color: "rgba(242,202,80,0.55)",
-              fontFamily: "var(--font-inter), system-ui, sans-serif",
-            }}>
-              Tip
-            </span>
-            <span style={{
-              fontFamily: "var(--font-noto-serif), Georgia, serif",
-              fontSize: "2.25rem",
-              lineHeight: 1,
-              color: "#e6e1df",
-              letterSpacing: "-0.02em",
-              fontVariantNumeric: "tabular-nums",
-            }}>
-              ${fmt(result.tipAmount)}
-            </span>
-          </div>
-
-          {/* Total — secondary */}
-          <div style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            padding: "0.75rem 1.125rem",
-          }}>
-            <span style={{
-              fontSize: "0.5rem",
-              letterSpacing: "0.22em",
-              textTransform: "uppercase" as const,
-              color: "rgba(208,197,175,0.35)",
-              fontFamily: "var(--font-inter), system-ui, sans-serif",
-            }}>
-              Total
-            </span>
-            <span style={{
-              fontFamily: "var(--font-noto-serif), Georgia, serif",
-              fontSize: "1.25rem",
-              color: "#a09890",
-              fontVariantNumeric: "tabular-nums",
-            }}>
-              ${fmt(result.totalDue)}
-            </span>
-          </div>
-
-          {/* Per-person — only when splitting */}
-          {numPeople > 1 && (
-            <div style={{
-              padding: "0 1.125rem 0.75rem",
-              display: "flex",
-              justifyContent: "flex-end",
-            }}>
-              <span style={{
-                fontSize: "0.5625rem",
-                color: "rgba(208,197,175,0.25)",
-                letterSpacing: "0.06em",
-                fontVariantNumeric: "tabular-nums",
-              }}>
-                {numPeople} people · ${fmt(result.perPerson)} each
-              </span>
-            </div>
-          )}
-        </div>
-
-      </main>
-
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200');
-
-        .material-symbols-outlined {
-          font-variation-settings: 'FILL' 0, 'wght' 200, 'GRAD' 0, 'opsz' 24;
-          font-size: 20px;
-          line-height: 1;
-          user-select: none;
-        }
-
-        input::placeholder {
-          color: rgba(230,225,223,0.18);
-          font-family: var(--font-noto-serif), Georgia, serif;
-        }
-
-        .chip {
-          transition: color 0.15s, border-color 0.15s, background-color 0.15s;
-        }
-        .chip:active:not(.chip-active):not(.chip-unhinged-active) {
-          color: #f2ca50 !important;
-          border-color: rgba(242,202,80,0.3) !important;
-        }
-
-        /* ── Aurora wrapper — gold variant ──────────────────────── */
-        /*
-         * The wrapper is the stacking context (z-index: 0).
-         * ::before / ::after sit at z-index: -1 within it (paint step 2).
-         * The button child has no z-index so it renders at step 6 — on top.
-         * The button's solid #141312 background covers the interior; only
-         * the ring extending beyond the button edge is ever visible.
-         */
-        @property --aurora-pos {
-          syntax: '<angle>';
-          initial-value: 0deg;
-          inherits: false;
-        }
-
-        .aurora-wrap {
-          position: relative;
-          z-index: 0;
-        }
-
-        .aurora-gold::before {
-          content: '';
-          position: absolute;
-          inset: -1.5px;
-          border-radius: 0.625rem;
-          background: conic-gradient(
-            from var(--aurora-pos),
-            transparent             0deg,
-            transparent            80deg,
-            rgba(255,220, 80,0.10)  93deg,
-            rgba(255,240,140,0.22) 104deg,
-            rgba(255,255,220,0.28) 110deg,
-            rgba(255,240,140,0.22) 116deg,
-            rgba(255,220, 80,0.10) 127deg,
-            transparent            140deg,
-            transparent            260deg,
-            rgba(255,220, 80,0.10) 273deg,
-            rgba(255,240,140,0.22) 284deg,
-            rgba(255,255,220,0.28) 290deg,
-            rgba(255,240,140,0.22) 296deg,
-            rgba(255,220, 80,0.10) 307deg,
-            transparent            320deg,
-            transparent            360deg
-          );
-          animation: aurora-travel 8s linear infinite;
-          pointer-events: none;
-          z-index: -1;
-        }
-
-        .aurora-gold::after {
-          content: '';
-          position: absolute;
-          inset: -4px;
-          border-radius: 0.75rem;
-          background: conic-gradient(
-            from var(--aurora-pos),
-            transparent             0deg,
-            transparent            78deg,
-            rgba(242,180,  0,0.06)  92deg,
-            rgba(255,220, 60,0.14) 104deg,
-            rgba(255,240,160,0.18) 110deg,
-            rgba(255,220, 60,0.14) 116deg,
-            rgba(242,180,  0,0.06) 128deg,
-            transparent            142deg,
-            transparent            258deg,
-            rgba(242,180,  0,0.06) 272deg,
-            rgba(255,220, 60,0.14) 284deg,
-            rgba(255,240,160,0.18) 290deg,
-            rgba(255,220, 60,0.14) 296deg,
-            rgba(242,180,  0,0.06) 308deg,
-            transparent            322deg,
-            transparent            360deg
-          );
-          filter: blur(5px);
-          animation: aurora-travel 8s linear infinite;
-          pointer-events: none;
-          z-index: -1;
-        }
-
-        @keyframes aurora-travel {
-          from { --aurora-pos: 0deg; }
-          to   { --aurora-pos: 360deg; }
-        }
-
-        /* ── Aurora wrapper — unhinged (chaos) variant ───────────── */
-        @property --chaos-pos {
-          syntax: '<angle>';
-          initial-value: 0deg;
-          inherits: false;
-        }
-
-        .aurora-chaos::before {
-          content: '';
-          position: absolute;
-          inset: -1.5px;
-          border-radius: 0.625rem;
-          background: conic-gradient(
-            from var(--chaos-pos),
-            transparent             0deg,
-            transparent            78deg,
-            rgba(255,160, 20,0.10)  90deg,
-            rgba(255, 80, 20,0.22) 102deg,
-            rgba(255,255,220,0.28) 110deg,
-            rgba(255, 40,100,0.22) 118deg,
-            rgba(200, 20,140,0.10) 130deg,
-            transparent            142deg,
-            transparent            258deg,
-            rgba(255,160, 20,0.10) 270deg,
-            rgba(255, 80, 20,0.22) 282deg,
-            rgba(255,255,220,0.28) 290deg,
-            rgba(255, 40,100,0.22) 298deg,
-            rgba(200, 20,140,0.10) 310deg,
-            transparent            322deg,
-            transparent            360deg
-          );
-          animation: chaos-travel 5s linear infinite;
-          pointer-events: none;
-          z-index: -1;
-        }
-
-        .aurora-chaos::after {
-          content: '';
-          position: absolute;
-          inset: -4px;
-          border-radius: 0.75rem;
-          background: conic-gradient(
-            from var(--chaos-pos),
-            transparent             0deg,
-            transparent            76deg,
-            rgba(255,140, 20,0.06)  89deg,
-            rgba(255, 60, 10,0.14) 102deg,
-            rgba(255,200,200,0.18) 110deg,
-            rgba(200, 20,120,0.14) 118deg,
-            rgba(160,  0,100,0.06) 131deg,
-            transparent            144deg,
-            transparent            256deg,
-            rgba(255,140, 20,0.06) 269deg,
-            rgba(255, 60, 10,0.14) 282deg,
-            rgba(255,200,200,0.18) 290deg,
-            rgba(200, 20,120,0.14) 298deg,
-            rgba(160,  0,100,0.06) 311deg,
-            transparent            324deg,
-            transparent            360deg
-          );
-          filter: blur(5px);
-          animation: chaos-travel 5s linear infinite;
-          pointer-events: none;
-          z-index: -1;
-        }
-
-        @keyframes chaos-travel {
-          from { --chaos-pos: 0deg; }
-          to   { --chaos-pos: 360deg; }
-        }
-      `}</style>
-    </div>
-  );
-}
-
-/* ── Sub-components ──────────────────────────────────────────────────────── */
-
-function MaterialIcon({ name }: { name: string }) {
-  return <span className="material-symbols-outlined">{name}</span>;
-}
-
-function TipChip({
-  label, pct, active, unhinged = false, onClick,
-}: {
-  label: string; pct: number; active: boolean; unhinged?: boolean; onClick: () => void;
-}) {
-  // Aurora lives on the wrapper, NOT the button. The wrapper creates the stacking
-  // context; the button (no z-index) renders at step 6 inside it — above the
-  // ::before (step 2) — so the button's solid background covers the interior.
-  const wrapClass = active
-    ? unhinged ? "aurora-wrap aurora-chaos" : "aurora-wrap aurora-gold"
-    : "";
-
-  return (
-    <div className={wrapClass} style={{ flex: 1 }}>
-      <button
-        onClick={() => { haptic(); onClick(); }}
-        className="chip"
-        style={{
-          width: "100%",
-          padding: "0.625rem 0.25rem",
-          borderRadius: "0.5rem",
-          cursor: "pointer",
-          border: active
-            ? `1px solid ${unhinged ? "rgba(255,100,60,0.35)" : "rgba(242,202,80,0.35)"}`
-            : "1px solid rgba(77,70,53,0.2)",
-          backgroundColor: active ? "#141312" : "#1d1b1a",
-          color: active ? (unhinged ? "#ff8855" : "#f2ca50") : "#736b58",
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          gap: "0.2rem",
-          fontFamily: "var(--font-inter), system-ui, sans-serif",
-          position: "relative",
-        }}>
-        <span style={{
-          fontSize: "0.5rem",
-          letterSpacing: "0.14em",
-          textTransform: "uppercase" as const,
-          fontWeight: 500,
-          color: active ? (unhinged ? "#ff8855" : "#f2ca50") : "rgba(208,197,175,0.35)",
-        }}>
-          {label}
-        </span>
-        <span style={{
-          fontSize: "0.9375rem",
-          fontWeight: active ? 600 : 400,
-          fontVariantNumeric: "tabular-nums",
-        }}>
-          {pct}%
-        </span>
-      </button>
-    </div>
-  );
-}
-
-const ITEM_W = 72; // px per slot in the horizontal wheel
-
-function PeopleWheel({ value, onChange }: { value: number; onChange: (n: number) => void }) {
-  const dragRef = useRef<{ startX: number; startVal: number } | null>(null);
-  const [visualOffset, setVisualOffset] = useState(0);
-
-  const commit = useCallback((rawX: number) => {
-    if (!dragRef.current) return;
-    const dx = rawX - dragRef.current.startX;          // positive = drag right = more people
-    const rawVal = dragRef.current.startVal + dx / ITEM_W;
-    const clamped = Math.max(1, Math.min(50, rawVal));
-    const rounded = Math.round(clamped);
-    if (rounded !== value) {
-      haptic(6);
-      onChange(rounded);
-    }
-    setVisualOffset((rounded - clamped) * ITEM_W);     // items slide left as value rises
-  }, [value, onChange]);
-
-  const onPointerDown = (e: React.PointerEvent) => {
-    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-    dragRef.current = { startX: e.clientX, startVal: value };
-    setVisualOffset(0);
-  };
-
-  const onPointerMove = (e: React.PointerEvent) => {
-    if (!dragRef.current) return;
-    commit(e.clientX);
-  };
-
-  const onPointerUp = () => {
-    dragRef.current = null;
-    setVisualOffset(0);
-  };
-
-  return (
-    <div
-      onPointerDown={onPointerDown}
-      onPointerMove={onPointerMove}
-      onPointerUp={onPointerUp}
-      onPointerCancel={onPointerUp}
-      style={{
-        position: "relative",
-        height: "52px",
-        overflow: "hidden",
-        cursor: "ew-resize",
-        userSelect: "none",
-        touchAction: "none",
-        borderRadius: "0.5rem",
-        background: "#1d1b1a",
-        border: "1px solid rgba(77,70,53,0.2)",
-      }}
-      aria-label={`${value} ${value === 1 ? "person" : "people"}`}
-      role="spinbutton"
-      aria-valuenow={value}
-      aria-valuemin={1}
-      aria-valuemax={50}
-    >
-      {/* Vertical selection window at center */}
-      <div style={{
-        position: "absolute",
-        top: "0.5rem",
-        bottom: "0.5rem",
-        left: "50%",
-        width: `${ITEM_W}px`,
-        transform: "translateX(-50%)",
-        borderRadius: "0.3rem",
-        background: "rgba(242,202,80,0.04)",
-        borderLeft: "1px solid rgba(242,202,80,0.10)",
-        borderRight: "1px solid rgba(242,202,80,0.10)",
-        pointerEvents: "none",
-      }} />
-
-      {([-2, -1, 0, 1, 2] as const).map((offset) => {
-        const n = value + offset;
-        const valid = n >= 1 && n <= 50;
-        const dist = Math.abs(offset);
-        const x = offset * ITEM_W + visualOffset;
-        return (
-          <div
-            key={offset}
-            style={{
-              position: "absolute",
-              top: "50%",
-              left: "50%",
-              transform: `translate(calc(-50% + ${x}px), -50%) scale(${dist === 0 ? 1 : dist === 1 ? 0.78 : 0.62})`,
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              gap: "0.1rem",
-              opacity: valid ? (dist === 0 ? 1 : dist === 1 ? 0.32 : 0.09) : 0,
-              transition: dragRef.current ? "none" : "transform 0.18s ease, opacity 0.18s ease",
-              pointerEvents: "none",
-              whiteSpace: "nowrap",
-            }}
+        {/* Header */}
+        <header className="header">
+          <button
+            type="button"
+            className="header-btn"
+            onClick={() => { setBillStr("0"); setCustomPct(""); haptics.soft(); }}
+            aria-label="Clear"
+            title="Clear"
           >
-            <span style={{
-              fontFamily: "var(--font-noto-serif), Georgia, serif",
-              fontSize: dist === 0 ? "1rem" : "0.875rem",
-              color: dist === 0 ? "#e6e1df" : "#d0c5af",
-              lineHeight: 1,
-              fontVariantNumeric: "tabular-nums",
-            }}>
-              {valid ? n : ""}
-            </span>
-            {dist === 0 && (
-              <span style={{
-                fontSize: "0.4375rem",
-                letterSpacing: "0.16em",
-                textTransform: "uppercase" as const,
-                color: "rgba(208,197,175,0.4)",
-                fontFamily: "var(--font-inter), system-ui, sans-serif",
-              }}>
-                {n === 1 ? "person" : "people"}
-              </span>
-            )}
-          </div>
-        );
-      })}
+            <span style={{ fontFamily: "var(--g-font-display)", fontSize: "1rem", fontStyle: "italic" }}>×</span>
+          </button>
+          <span className="header-mark">GRATUITY</span>
+          <button
+            type="button"
+            className={"header-btn" + (tweaksOpen ? " active" : "")}
+            onClick={() => setTweaksOpen((v) => !v)}
+            aria-label="Tweaks"
+            title="Tweaks"
+          >
+            <span style={{ fontFamily: "var(--g-font-display)", fontSize: "1rem", letterSpacing: "0.08em" }}>⋯</span>
+          </button>
+        </header>
 
-      {/* Left/right edge fades */}
-      <div style={{
-        position: "absolute", inset: 0, pointerEvents: "none",
-        background: "linear-gradient(to right, #1d1b1a 0%, transparent 22%, transparent 78%, #1d1b1a 100%)",
-        borderRadius: "0.5rem",
-      }} />
+        {/* Bill Hero */}
+        <section className="bill-hero" onClick={handleTap} data-screen-label="Bill Hero">
+          <label className="bill-eyebrow">Check Total</label>
+          <div
+            className={"bill-amount" + (isEmpty ? " empty" : "") + (pulseKey ? " pulse-on-key" : "")}
+            key={pulseKey}
+          >
+            <span className="dollar">$</span>
+            <span className="whole"><TickerNumber value={wholePart} /></span>
+            <span className="decimal">.<TickerNumber value={decPart} /></span>
+            {focused && <span className="bill-caret" />}
+          </div>
+          <div className="bill-underline" />
+          <div className="bill-hint" style={{ opacity: isEmpty && !focused ? 1 : 0 }}>
+            Tap to enter amount
+          </div>
+        </section>
+
+        {/* Tier Selector */}
+        <section className="tier-rail" data-screen-label="Tip Tier Selector">
+          <div className="tier-header">
+            <span className="tier-eyebrow">Tip Tier</span>
+            <span className="tier-pct">{useCustom ? "custom" : activePct + "%"}</span>
+          </div>
+          <div className="tier-grid">
+            {TIERS.map((t) => {
+              const active = !useCustom && activeTier === t.key;
+              return (
+                <button
+                  key={t.key}
+                  type="button"
+                  className={"tier-card " + t.cls + (active ? " active" : "")}
+                  onClick={() => handlePick(t.key)}
+                  aria-pressed={active}
+                >
+                  <span className="tier-glyph">{t.glyph}</span>
+                  <span className="tier-value">{t.pct}%</span>
+                  <span className="tier-label">{t.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+
+        {/* Custom Tip */}
+        <div className="custom-row">
+          <span className="custom-label">Custom %</span>
+          <label className="custom-input-wrap">
+            <input
+              className="custom-input"
+              type="number"
+              inputMode="decimal"
+              placeholder="—"
+              min={0}
+              max={999}
+              step={0.5}
+              value={customPct}
+              onChange={(e) => handleCustom(e.target.value)}
+            />
+            <span className="custom-suffix">%</span>
+          </label>
+        </div>
+
+        {/* Summary */}
+        <section className="summary" data-screen-label="Summary">
+          <div className="summary-card s-tip">
+            <span className="s-label">Tip Amount</span>
+            <span className="s-value">
+              <span className="sd">$</span>
+              <TickerNumber value={tipFormatted} />
+            </span>
+          </div>
+          <div className="summary-card s-total">
+            <span className="s-label">Total Due</span>
+            <span className="s-value">
+              <span className="sd">$</span>
+              <TickerNumber value={totalFormatted} />
+            </span>
+          </div>
+        </section>
+
+      </div>
+
+      <UnhingedFX active={isUnhinged} style={unhingedStyle} />
+
+      <TweaksPanel
+        open={tweaksOpen}
+        onClose={() => setTweaksOpen(false)}
+        unhingedStyle={unhingedStyle}
+        setUnhingedStyle={(s) => { setUnhingedStyle(s); haptics.chaos(); }}
+      />
     </div>
   );
 }
-
